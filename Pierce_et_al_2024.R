@@ -1,0 +1,83 @@
+#Data analysis script associated with Pierce_et_al_2024
+#Data Import and Library Load####
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+cat("\014")
+rm(list=ls()) 
+ls() 
+setwd(dir = "/Users")
+getwd()
+df = read.csv("FileName.csv", header = FALSE, na.strings = "NA")
+##Step 31####
+#Retain meta information from "Results Table"
+head(df)
+names(df) = df[2,]
+df =df[-c(1,2,3),]
+str(df)
+colnames(df)
+i = c(10:15)
+df[,i] = apply(df[ ,i], 2,
+                function(x) as.numeric(x))
+df2 = df[grep("[[:digit:]]", df$`Specimen Length`), ]
+colnames(df2)
+df3 = df2[,c(1:9)] #df3 = meta data
+#Remove the meta data from the top of csv file
+df4 = anti_join(df, df3) #df4 = raw data
+df4 = df4[,c(1:5)]
+names(df4)[1] = "sample"
+#Group data/Assign "sample" number to each specimen in order to fit line within a specimen
+df4$sample = as.numeric(df4$sample)
+df4 = df4 %>%
+  fill(sample)
+unique(df4$sample)
+names(df4)[2] = "Time_s"
+names(df4)[3] = "Displacement_mm"
+names(df4)[4] = "Force_N"
+names(df4)[5] = "Flexure_displacement_mm"
+df4 = df4[!(df4$Time_s %in% "Time"),]
+df4 = df4[!(df4$Time_s %in% "(s)"),]
+df4 = df4 %>% drop_na(sample)
+i = c(2:5)
+df4[,i] = apply(df4[ ,i], 2,
+                 function(x) as.numeric(x))
+unique(df4$sample)
+#Creating a data frame to fill in
+raw_slope = matrix(NA,nrow=2,ncol=1)
+rownames(raw_slope) = c("(Intercept)","displacement_mm")
+ID = c("(Intercept)","displacement_mm")
+raw_slope_Nmm = data.frame(ID)
+samples = unique(df4$sample)
+head(df4)
+#Loop over all unique IDs in data frame
+for(i in samples){
+  df5 = df4[which(df4$sample == i),]
+  df5 = subset(df5, Flexure_displacement_mm > 0 & Flexure_displacement_mm<0.11)
+  lm = lm(df5$Force_N ~ df5$Flexure_displacement_mm)
+  raw_slope[,1] = lm$coefficients
+  raw_slope2 = data.frame(raw_slope,ID) 
+  colnames(raw_slope2)[1] = i 
+  raw_slope_Nmm = merge(raw_slope_Nmm,raw_slope2,by="ID")
+}
+
+#Prepare data frame to merge with meta information
+raw_slope_Nmm = as.data.frame(t(raw_slope_Nmm)) 
+raw_slope_Nmm = raw_slope_Nmm[grep("[[:digit:]]", raw_slope_Nmm$V1), ]
+names(raw_slope_Nmm)[1] = "Intercept" 
+names(raw_slope_Nmm)[2] = "line_raw_slope_N/mm" 
+raw_slope_Nmm$ID = rownames(raw_slope_Nmm)
+raw_slope_Nmm = raw_slope_Nmm[,c(3,1,2)]
+names(df3)[1] = "ID"
+data = merge(df3, raw_slope_Nmm, by="ID")
+data = data[,c(1:9,11)]
+names(data)[10] = "K"
+##Steps 32 and 33 ####
+str(data)
+i = c(7:10)
+data[,i] = apply(data[ ,i], 2,
+                function(x) as.numeric(x))
+data$a0 = (data$`Vertical Specimen Diameter`)/2
+data$b0 = (data$`Horizontal Specimen Diameter`)/2
+data$I = (pi/4)*(((data$a0)^3)*(data$b0))
+data$E = data$K * ((17.5^3)/(48*(data$I)))
+head(data)
