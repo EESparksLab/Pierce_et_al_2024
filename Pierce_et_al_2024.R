@@ -1,15 +1,15 @@
 #Data analysis script associated with Pierce_et_al_2024
-#Data Import and Library Load####
+#Data Import and Library Load
 library(dplyr)
 library(tidyr)
 library(tidyverse)
 cat("\014")
 rm(list=ls()) 
 ls() 
-setwd(dir = "/Users")
+setwd(dir = "/Users/ashley/Documents/GitHub/Pierce_et_al_2024/")
 getwd()
-df = read.csv("FileName.csv", header = FALSE, na.strings = "NA")
-##Step 31####
+df = read.csv("TestData.csv", header = FALSE, na.strings = "NA")
+#Step 30####
 #Retain meta information from "Results Table"
 head(df)
 names(df) = df[2,]
@@ -42,6 +42,18 @@ i = c(2:5)
 df4[,i] = apply(df4[ ,i], 2,
                  function(x) as.numeric(x))
 unique(df4$sample)
+
+#Removing samples from df4 that were rerun/unable to be processed (NAs in Max Slope column)
+df5 = df2 %>% drop_na("Maximum Slope (Automatic)") #df5 = data from results table, only observations that successfully worked (did not have NA in 'Maximum Slope (Automatic)' column)
+df6 = anti_join(df2, df5) #df6 = observations that are not common between df2 (all samples run) and df5 (only samples that worked); df6=samples that failed and have NA in 'Maximum Slope (Automatic)' column
+names(df6)[1] = "sample"
+#remove samples that failed from df4 before running lm so it does not fail
+df6$sample = as.numeric(df6$sample)
+unique(df4$sample)
+df4 = anti_join(df4, df6) #used anti_join to remove the samples that unique to df4 and not present in df6
+unique(df4$sample)
+
+
 #Creating a data frame to fill in
 raw_slope = matrix(NA,nrow=2,ncol=1)
 rownames(raw_slope) = c("(Intercept)","displacement_mm")
@@ -71,7 +83,8 @@ names(df3)[1] = "ID"
 data = merge(df3, raw_slope_Nmm, by="ID")
 data = data[,c(1:9,11)]
 names(data)[10] = "K"
-##Steps 32 and 33 ####
+
+#Steps 31 and 32 ####
 str(data)
 i = c(7:10)
 data[,i] = apply(data[ ,i], 2,
@@ -81,3 +94,4 @@ data$b0 = (data$`Horizontal Specimen Diameter`)/2
 data$I = (pi/4)*(((data$a0)^3)*(data$b0))
 data$E = data$K * ((17.5^3)/(48*(data$I)))
 head(data)
+
